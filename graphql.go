@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hasura/go-graphql-client/internal/jsonutil"
+	"github.com/darrensapalo/go-graphql-client/internal/jsonutil"
 	"golang.org/x/net/context/ctxhttp"
 )
 
@@ -17,6 +17,15 @@ import (
 type Client struct {
 	url        string // GraphQL server URL.
 	httpClient *http.Client
+	// DefineQueriesManually determines whether or not the query string is generated manually or automatically.
+	DefineQueriesManually bool
+}
+
+// ManualRequest allows you to define the graphql request in string format, and specify the variable where to
+// unmarshal the JSON result.
+type ManualRequest struct {
+	Query  string
+	Result interface{}
 }
 
 // NewClient creates a GraphQL client targeting the specified GraphQL server URL.
@@ -87,12 +96,28 @@ func (c *Client) NamedMutateRaw(ctx context.Context, name string, m interface{},
 // return raw message and error
 func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, name string) (*json.RawMessage, error) {
 	var query string
-	switch op {
-	case queryOperation:
-		query = constructQuery(v, variables, name)
-	case mutationOperation:
-		query = constructMutation(v, variables, name)
+
+	var manualRequest *ManualRequest
+
+	if c.DefineQueriesManually {
+
+		mr, ok := v.(ManualRequest)
+
+		if !ok {
+			return nil, fmt.Errorf("Incorrect struct type for `m` or `q`. Use ManualRequest because you specified DefineQueriesManually")
+
+		}
+		manualRequest = &mr
+		query = manualRequest.Query
+	} else {
+		switch op {
+		case queryOperation:
+			query = constructQuery(v, variables, name)
+		case mutationOperation:
+			query = constructMutation(v, variables, name)
+		}
 	}
+
 	in := struct {
 		Query     string                 `json:"query"`
 		Variables map[string]interface{} `json:"variables,omitempty"`
@@ -136,12 +161,27 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 func (c *Client) do(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, name string) error {
 
 	var query string
-	switch op {
-	case queryOperation:
-		query = constructQuery(v, variables, name)
-	case mutationOperation:
-		query = constructMutation(v, variables, name)
+	var manualRequest *ManualRequest
+
+	if c.DefineQueriesManually {
+
+		mr, ok := v.(ManualRequest)
+
+		if !ok {
+			return fmt.Errorf("Incorrect struct type for `m` or `q`. Use ManualRequest because you specified DefineQueriesManually")
+
+		}
+		manualRequest = &mr
+		query = manualRequest.Query
+	} else {
+		switch op {
+		case queryOperation:
+			query = constructQuery(v, variables, name)
+		case mutationOperation:
+			query = constructMutation(v, variables, name)
+		}
 	}
+
 	in := struct {
 		Query     string                 `json:"query"`
 		Variables map[string]interface{} `json:"variables,omitempty"`
@@ -174,7 +214,14 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 		return err
 	}
 	if out.Data != nil {
-		err := jsonutil.UnmarshalGraphQL(*out.Data, v)
+
+		var target interface{} = v
+
+		if c.DefineQueriesManually {
+			target = manualRequest.Result
+		}
+
+		err := jsonutil.UnmarshalGraphQL(*out.Data, target)
 		if err != nil {
 			// TODO: Consider including response body in returned error, if deemed helpful.
 			return err
