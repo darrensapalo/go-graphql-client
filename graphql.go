@@ -191,8 +191,9 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 //
 // Specification: https://facebook.github.io/graphql/#sec-Errors.
 type errors []struct {
-	Message   string
-	Locations []struct {
+	Extensions interface{}
+	Message    string
+	Locations  []struct {
 		Line   int
 		Column int
 	}
