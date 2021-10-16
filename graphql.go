@@ -17,8 +17,6 @@ import (
 type Client struct {
 	url        string // GraphQL server URL.
 	httpClient *http.Client
-	// DefineQueriesManually determines whether or not the query string is generated manually or automatically.
-	DefineQueriesManually bool
 	// Headers allows you additional headers when performing the graphql request.
 	Headers map[string]string
 }
@@ -102,16 +100,12 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 
 	var manualRequest *ManualRequest
 
-	if c.DefineQueriesManually {
+	mr, ok := v.(ManualRequest)
 
-		mr, ok := v.(ManualRequest)
-
-		if !ok {
-			return nil, fmt.Errorf("Incorrect struct type for `m` or `q`. Use ManualRequest because you specified DefineQueriesManually")
-
-		}
+	if ok {
 		manualRequest = &mr
 		query = manualRequest.Query
+
 	} else {
 		switch op {
 		case queryOperation:
@@ -177,16 +171,12 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	var query string
 	var manualRequest *ManualRequest
 
-	if c.DefineQueriesManually {
+	mr, ok := v.(ManualRequest)
 
-		mr, ok := v.(ManualRequest)
-
-		if !ok {
-			return fmt.Errorf("Incorrect struct type for `m` or `q`. Use ManualRequest because you specified DefineQueriesManually")
-
-		}
+	if ok {
 		manualRequest = &mr
 		query = manualRequest.Query
+
 	} else {
 		switch op {
 		case queryOperation:
@@ -243,7 +233,7 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 
 		var target interface{} = v
 
-		if c.DefineQueriesManually {
+		if manualRequest != nil {
 			target = manualRequest.Result
 		}
 
