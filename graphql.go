@@ -26,8 +26,9 @@ type Client struct {
 // ManualRequest allows you to define the graphql request in string format, and specify the variable where to
 // unmarshal the JSON result.
 type ManualRequest struct {
-	Query  string
-	Result interface{}
+	Query     string
+	Variables map[string]interface{}
+	Result    interface{}
 }
 
 // NewClient creates a GraphQL client targeting the specified GraphQL server URL.
