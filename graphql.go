@@ -19,6 +19,8 @@ type Client struct {
 	httpClient *http.Client
 	// DefineQueriesManually determines whether or not the query string is generated manually or automatically.
 	DefineQueriesManually bool
+	// Headers allows you additional headers when performing the graphql request.
+	Headers map[string]string
 }
 
 // ManualRequest allows you to define the graphql request in string format, and specify the variable where to
@@ -130,7 +132,18 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 	if err != nil {
 		return nil, err
 	}
-	resp, err := ctxhttp.Post(ctx, c.httpClient, c.url, "application/json", &buf)
+	httpRequest, err := http.NewRequest("POST", c.url, &buf)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range c.Headers {
+		httpRequest.Header.Add(key, value)
+	}
+
+	resp, err := ctxhttp.Do(ctx, c.httpClient, httpRequest)
+
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +207,19 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	if err != nil {
 		return err
 	}
-	resp, err := ctxhttp.Post(ctx, c.httpClient, c.url, "application/json", &buf)
+
+	httpRequest, err := http.NewRequest("POST", c.url, &buf)
+
+	if err != nil {
+		return err
+	}
+
+	for key, value := range c.Headers {
+		httpRequest.Header.Add(key, value)
+	}
+
+	resp, err := ctxhttp.Do(ctx, c.httpClient, httpRequest)
+
 	if err != nil {
 		return err
 	}
