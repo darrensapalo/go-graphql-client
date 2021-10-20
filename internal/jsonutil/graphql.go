@@ -17,10 +17,10 @@ import (
 //
 // The implementation is created on top of the JSON tokenizer available
 // in "encoding/json".Decoder.
-func UnmarshalGraphQL(data []byte, v interface{}) error {
+func UnmarshalGraphQL(data []byte, v interface{}, strict bool) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
-	err := (&decoder{tokenizer: dec}).Decode(v)
+	err := (&decoder{tokenizer: dec, Strict: strict}).Decode(v)
 	if err != nil {
 		return err
 	}
@@ -40,6 +40,13 @@ func UnmarshalGraphQL(data []byte, v interface{}) error {
 // decoder is a JSON decoder that performs custom unmarshaling behavior
 // for GraphQL query data structures. It's implemented on top of a JSON tokenizer.
 type decoder struct {
+	// Strict will force the decoder to use only the `graphql` structural flag.
+	// If you set this to false, then it will use `graphql` as the first-class structural flag to use.
+	// If it is not available, it will attempt to use the `json` structural flag.
+	//
+	// Defaults to false.
+	Strict bool
+
 	tokenizer interface {
 		Token() (json.Token, error)
 		Decode(v interface{}) error
@@ -101,7 +108,7 @@ func (d *decoder) decode() error {
 				}
 				var f reflect.Value
 				if v.Kind() == reflect.Struct {
-					f = fieldByGraphQLName(v, key)
+					f = fieldByGraphQLName(v, key, d.Strict)
 					if f.IsValid() {
 						someFieldExist = true
 						// Check for special embedded json
@@ -114,7 +121,9 @@ func (d *decoder) decode() error {
 				d.vs[i] = append(d.vs[i], f)
 			}
 			if !someFieldExist {
-				return fmt.Errorf("struct field for %q doesn't exist in any of %v places to unmarshal", key, len(d.vs))
+				if d.Strict {
+					return fmt.Errorf("struct field for %q doesn't exist in any of %v places to unmarshal", key, len(d.vs))
+				}
 			}
 
 			if rawMessage {
@@ -150,7 +159,9 @@ func (d *decoder) decode() error {
 				d.vs[i] = append(d.vs[i], f)
 			}
 			if !someSliceExist {
-				return fmt.Errorf("slice doesn't exist in any of %v places to unmarshal", len(d.vs))
+				if d.Strict {
+					return fmt.Errorf("slice doesn't exist in any of %v places to unmarshal", len(d.vs))
+				}
 			}
 		}
 
@@ -273,13 +284,13 @@ func (d *decoder) popAllVs() {
 
 // fieldByGraphQLName returns an exported struct field of struct v
 // that matches GraphQL name, or invalid reflect.Value if none found.
-func fieldByGraphQLName(v reflect.Value, name string) reflect.Value {
+func fieldByGraphQLName(v reflect.Value, name string, strict bool) reflect.Value {
 	for i := 0; i < v.NumField(); i++ {
 		if v.Type().Field(i).PkgPath != "" {
 			// Skip unexported field.
 			continue
 		}
-		if hasGraphQLName(v.Type().Field(i), name) {
+		if hasGraphQLName(v.Type().Field(i), name, strict) {
 			return v.Field(i)
 		}
 	}
@@ -287,13 +298,21 @@ func fieldByGraphQLName(v reflect.Value, name string) reflect.Value {
 }
 
 // hasGraphQLName reports whether struct field f has GraphQL name.
-func hasGraphQLName(f reflect.StructField, name string) bool {
+func hasGraphQLName(f reflect.StructField, name string, strict bool) bool {
 	value, ok := f.Tag.Lookup("graphql")
 	if !ok {
-		// TODO: caseconv package is relatively slow. Optimize it, then consider using it here.
-		//return caseconv.MixedCapsToLowerCamelCase(f.Name) == name
-		return strings.EqualFold(f.Name, name)
+		if strict == false {
+			value, ok = f.Tag.Lookup("json")
+			if !ok {
+				return strings.EqualFold(f.Name, name)
+			}
+		} else {
+			// TODO: caseconv package is relatively slow. Optimize it, then consider using it here.
+			//return caseconv.MixedCapsToLowerCamelCase(f.Name) == name
+			return strings.EqualFold(f.Name, name)
+		}
 	}
+
 	value = strings.TrimSpace(value) // TODO: Parse better.
 	if strings.HasPrefix(value, "...") {
 		// GraphQL fragment. It doesn't have a name.

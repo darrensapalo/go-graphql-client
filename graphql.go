@@ -15,6 +15,12 @@ import (
 
 // Client is a GraphQL client.
 type Client struct {
+	// Strict will force the decoder to use only the `graphql` structural flag.
+	// If you set this to false, then it will use `graphql` as the first-class structural flag to use.
+	// If it is not available, it will attempt to use the `json` structural flag.
+	//
+	// Defaults to false.
+	Strict     bool
 	url        string // GraphQL server URL.
 	httpClient *http.Client
 	// Headers allows you additional headers when performing the graphql request.
@@ -237,7 +243,7 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 			target = manualRequest.Result
 		}
 
-		err := jsonutil.UnmarshalGraphQL(*out.Data, target)
+		err := jsonutil.UnmarshalGraphQL(*out.Data, target, c.Strict)
 		if err != nil {
 			// TODO: Consider including response body in returned error, if deemed helpful.
 			return err
