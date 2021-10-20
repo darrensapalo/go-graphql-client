@@ -31,7 +31,7 @@ func TestUnmarshalGraphQL(t *testing.T) {
 			"name": "Luke Skywalker",
 			"height": 1.72
 		}
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestUnmarshalGraphQL_graphqlTag(t *testing.T) {
 	var got query
 	err := jsonutil.UnmarshalGraphQL([]byte(`{
 		"baz": "bar"
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestUnmarshalGraphQL_jsonTag(t *testing.T) {
 	var got query
 	err := jsonutil.UnmarshalGraphQL([]byte(`{
 		"foo": "bar"
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestUnmarshalGraphQL_jsonRawTag(t *testing.T) {
 	err := jsonutil.UnmarshalGraphQL([]byte(`{
 		"Data": { "foo":"bar" },
 		"Another" : "stuff"
-        }`), &got)
+        }`), &got, true)
 
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +118,7 @@ func TestUnmarshalGraphQL_array(t *testing.T) {
 		],
 		"bar": [],
 		"baz": null
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestUnmarshalGraphQL_array(t *testing.T) {
 // (rather than appended to).
 func TestUnmarshalGraphQL_arrayReset(t *testing.T) {
 	var got = []string{"initial"}
-	err := jsonutil.UnmarshalGraphQL([]byte(`["bar", "baz"]`), &got)
+	err := jsonutil.UnmarshalGraphQL([]byte(`["bar", "baz"]`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestUnmarshalGraphQL_objectArray(t *testing.T) {
 			{"name": "bar"},
 			{"name": "baz"}
 		]
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestUnmarshalGraphQL_pointer(t *testing.T) {
 	err := jsonutil.UnmarshalGraphQL([]byte(`{
 		"foo": "foo",
 		"bar": null
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestUnmarshalGraphQL_objectPointerArray(t *testing.T) {
 			null,
 			{"name": "baz"}
 		]
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestUnmarshalGraphQL_pointerWithInlineFragment(t *testing.T) {
 			"databaseId": 2,
 			"login": "test2"
 		}
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +269,7 @@ func TestUnmarshalGraphQL_unexportedField(t *testing.T) {
 	type query struct {
 		foo graphql.String
 	}
-	err := jsonutil.UnmarshalGraphQL([]byte(`{"foo": "bar"}`), new(query))
+	err := jsonutil.UnmarshalGraphQL([]byte(`{"foo": "bar"}`), new(query), true)
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
@@ -282,7 +282,7 @@ func TestUnmarshalGraphQL_multipleValues(t *testing.T) {
 	type query struct {
 		Foo graphql.String
 	}
-	err := jsonutil.UnmarshalGraphQL([]byte(`{"foo": "bar"}{"foo": "baz"}`), new(query))
+	err := jsonutil.UnmarshalGraphQL([]byte(`{"foo": "bar"}{"foo": "baz"}`), new(query), true)
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
@@ -326,7 +326,7 @@ func TestUnmarshalGraphQL_union(t *testing.T) {
 		"actor": {
 			"login": "shurcooL-test"
 		}
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestUnmarshalGraphQL_arrayInsideInlineFragment(t *testing.T) {
 				}
 			]
 		}
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}

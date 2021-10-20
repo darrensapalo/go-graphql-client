@@ -303,8 +303,14 @@ func hasGraphQLName(f reflect.StructField, name string, strict bool) bool {
 	if !ok {
 		if strict == false {
 			value, ok = f.Tag.Lookup("json")
+
 			if !ok {
 				return strings.EqualFold(f.Name, name)
+			}
+
+			values := strings.Split(value, ",")
+			if len(values) > 0 {
+				value = values[0]
 			}
 		} else {
 			// TODO: caseconv package is relatively slow. Optimize it, then consider using it here.

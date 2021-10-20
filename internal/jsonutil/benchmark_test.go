@@ -33,7 +33,7 @@ func TestUnmarshalGraphQL_benchmark(t *testing.T) {
 			"login": "shurcooL-test",
 			"createdAt": "2017-06-29T04:12:01Z"
 		}
-	}`), &got)
+	}`), &got, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func BenchmarkUnmarshalGraphQL(b *testing.B) {
 				"login": "shurcooL-test",
 				"createdAt": "`+now.Format(time.RFC3339Nano)+`"
 			}
-		}`), &got)
+		}`), &got, true)
 		if err != nil {
 			b.Fatal(err)
 		}

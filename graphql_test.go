@@ -100,7 +100,7 @@ func TestClient_Query_NoGraphQLStructuralFlags(t *testing.T) {
 	)
 
 	var q struct {
-		Node1 *NodeA `json:"node1"`
+		Node1 *NodeA `json:"node1,omitempty"`
 		Node2 *NodeB `json:"node2"`
 	}
 
