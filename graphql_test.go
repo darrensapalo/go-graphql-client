@@ -2,7 +2,7 @@ package graphql_test
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -12,68 +12,8 @@ import (
 	"github.com/darrensapalo/go-graphql-client"
 )
 
-func TestClient_Query_partialDataWithErrorResponse(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		mustWrite(w, `{
-      "data": {
-        "node1": {
-          "id": "MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng=="
-        },
-        "node2": null
-      },
-      "errors": [
-        {
-          "message": "Could not resolve to a node with the global id of 'NotExist'",
-          "type": "NOT_FOUND",
-          "path": [
-            "node2"
-          ],
-          "locations": [
-            {
-              "line": 10,
-              "column": 4
-            }
-          ]
-        }
-      ]
-    }`)
-	})
-	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
-
-	var q struct {
-		Node1 *struct {
-			ID graphql.ID
-		} `graphql:"node1: node(id: \"MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng==\")"`
-		Node2 *struct {
-			ID graphql.ID
-		} `graphql:"node2: node(id: \"NotExist\")"`
-	}
-
-	_, err := client.QueryRaw(context.Background(), &q, nil)
-	if err == nil {
-		t.Fatal("got error: nil, want: non-nil")
-	}
-
-	err = client.Query(context.Background(), &q, nil)
-	if err == nil {
-		t.Fatal("got error: nil, want: non-nil")
-	}
-	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}]"; got != want {
-		t.Errorf("got error: %v, want: %v", got, want)
-	}
-
-	if q.Node1 == nil || q.Node1.ID != "MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng==" {
-		t.Errorf("got wrong q.Node1: %v", q.Node1)
-	}
-	if q.Node2 != nil {
-		t.Errorf("got non-nil q.Node2: %v, want: nil", *q.Node2)
-	}
-}
-
-// Relies on json structural flags rather than graphql
-func TestClient_Query_NoGraphQLStructuralFlags(t *testing.T) {
+// Relies on json structural flags rather than graphql with support for json object
+func TestClient_Query_NoGraphQLStructuralFlagsJSONObject(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -81,7 +21,14 @@ func TestClient_Query_NoGraphQLStructuralFlags(t *testing.T) {
 			`{
   "data": {
     "node1": {
-      "id": "MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng=="
+      "id": "MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng==",
+			"someObject": {
+				"test": "successful",
+				"rly": "this is possible?",
+				"even": {
+					"nested": "objects?"
+				}
+			}
     },
     "node2": null
   }
@@ -91,7 +38,8 @@ func TestClient_Query_NoGraphQLStructuralFlags(t *testing.T) {
 
 	type (
 		NodeA struct {
-			ID string `json:"id"`
+			ID         string      `json:"id"`
+			SomeObject interface{} `json:"someObject"`
 		}
 
 		NodeB struct {
@@ -104,13 +52,13 @@ func TestClient_Query_NoGraphQLStructuralFlags(t *testing.T) {
 		Node2 *NodeB `json:"node2"`
 	}
 
-	err := client.Query(context.Background(), &q, nil)
-
-	if err != nil {
-		t.Fatalf("got error: %v, want: nil", err)
+	request := graphql.ManualRequest{
+		Query:     "Does not matter",
+		Variables: map[string]interface{}{},
+		Result:    &q,
 	}
 
-	err = client.Query(context.Background(), &q, nil)
+	err := client.Query(context.Background(), request, nil)
 
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
@@ -119,57 +67,17 @@ func TestClient_Query_NoGraphQLStructuralFlags(t *testing.T) {
 	if q.Node1 == nil || q.Node1.ID != "MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng==" {
 		t.Errorf("got wrong q.Node1: %+v", q.Node1)
 	}
+
+	if q.Node1.SomeObject == nil {
+		t.Errorf("got nil q.Node1.SomeObject")
+	}
+
+	if x, ok := q.Node1.SomeObject.(map[string]interface{}); ok {
+		fmt.Printf("OK %+v", x)
+	}
+
 	if q.Node2 != nil {
 		t.Errorf("got non-nil q.Node2: %+v, want: nil", *q.Node2)
-	}
-}
-
-func TestClient_Query_partialDataRawQueryWithErrorResponse(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		mustWrite(w, `{
-      "data": {
-        "node1": { "id": "MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng==" },
-        "node2": null
-      },
-      "errors": [
-        {
-          "message": "Could not resolve to a node with the global id of 'NotExist'",
-          "type": "NOT_FOUND",
-          "path": [
-            "node2"
-          ],
-          "locations": [
-            {
-              "line": 10,
-              "column": 4
-            }
-          ]
-        }
-      ]
-    }`)
-	})
-	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
-
-	var q struct {
-		Node1 json.RawMessage `graphql:"node1"`
-		Node2 *struct {
-			ID graphql.ID
-		} `graphql:"node2: node(id: \"NotExist\")"`
-	}
-	err := client.Query(context.Background(), &q, nil)
-	if err == nil {
-		t.Fatal("got error: nil, want: non-nil\n")
-	}
-	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}]"; got != want {
-		t.Errorf("got error: %v, want: %v\n", got, want)
-	}
-	if q.Node1 == nil || string(q.Node1) != `{"id":"MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng=="}` {
-		t.Errorf("got wrong q.Node1: %v\n", string(q.Node1))
-	}
-	if q.Node2 != nil {
-		t.Errorf("got non-nil q.Node2: %v, want: nil\n", *q.Node2)
 	}
 }
 
@@ -198,7 +106,14 @@ func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
 			Name graphql.String
 		}
 	}
-	err := client.Query(context.Background(), &q, nil)
+
+	manualRequest := graphql.ManualRequest{
+		Query:     "doesnt matter",
+		Variables: make(map[string]interface{}),
+		Result:    &q,
+	}
+
+	err := client.Query(context.Background(), manualRequest, nil)
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
@@ -207,11 +122,6 @@ func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
 	}
 	if q.User.Name != "" {
 		t.Errorf("got non-empty q.User.Name: %v", q.User.Name)
-	}
-
-	_, err = client.QueryRaw(context.Background(), &q, nil)
-	if err == nil {
-		t.Fatal("got error: nil, want: non-nil")
 	}
 }
 
@@ -227,7 +137,14 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 			Name graphql.String
 		}
 	}
-	err := client.Query(context.Background(), &q, nil)
+
+	manualRequest := graphql.ManualRequest{
+		Query:     "doesnt matter",
+		Variables: make(map[string]interface{}),
+		Result:    &q,
+	}
+
+	err := client.Query(context.Background(), manualRequest, nil)
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
@@ -236,34 +153,6 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 	}
 	if q.User.Name != "" {
 		t.Errorf("got non-empty q.User.Name: %v", q.User.Name)
-	}
-}
-
-// Test that an empty (but non-nil) variables map is
-// handled no differently than a nil variables map.
-func TestClient_Query_emptyVariables(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
-		body := mustRead(req.Body)
-		if got, want := body, `{"query":"{user{name}}"}`+"\n"; got != want {
-			t.Errorf("got body: %v, want %v", got, want)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}}`)
-	})
-	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
-
-	var q struct {
-		User struct {
-			Name string
-		}
-	}
-	err := client.Query(context.Background(), &q, map[string]interface{}{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := q.User.Name, "Gopher"; got != want {
-		t.Errorf("got q.User.Name: %q, want: %q", got, want)
 	}
 }
 
