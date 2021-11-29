@@ -22,21 +22,29 @@ type Client struct {
 	Strict     bool
 	url        string // GraphQL server URL.
 	httpClient *http.Client
-	// Headers allows you additional headers when performing the graphql request.
-	Headers map[string]string
+	// DefaultHeaders allows you preset headers that will be made for all succeeding GraphQL requests.
+	// If you want request-specific headers, check `ManualRequest`.
+	DefaultHeaders http.Header
 }
 
-// ManualRequest allows you to define the graphql request in string format, and specify the variable where to
-// unmarshal the JSON result.
+// ManualRequest allows you to define the graphql request in string format,
+// and also specify the struct receiver, where the JSON result will be unmarshalled.
+//
+// It also allows you to configure headers to be sent with the request.
 type ManualRequest struct {
 	// The GraphQL Query or Mutation, in string format.
 	Query string
+
 	// The variables used in the GraphQL query or mutation.
 	Variables map[string]interface{}
+
 	// Result is where the JSON response of the request will be decoded.
 	//
 	// Make sure that this is an pointer type (address to the struct you wish to decode into).
 	Result interface{}
+
+	// Headers are the request-specific headers for this instance of a graphql request.
+	Headers http.Header
 }
 
 // NewClient creates a GraphQL client targeting the specified GraphQL server URL.
@@ -107,8 +115,14 @@ func (c *Client) DoRaw(ctx context.Context, op operationType, v interface{}, var
 		return nil, err
 	}
 
-	for key, value := range c.Headers {
-		httpRequest.Header.Add(key, value)
+	// Default headers first
+	for key, value := range c.DefaultHeaders {
+		httpRequest.Header[key] = value
+	}
+
+	// Request-specific headers next
+	for key, value := range mr.Headers {
+		httpRequest.Header[key] = value
 	}
 
 	resp, err := ctxhttp.Do(ctx, c.httpClient, httpRequest)
@@ -195,8 +209,14 @@ func (c *Client) Do(ctx context.Context, op operationType, v interface{}, variab
 		return err
 	}
 
-	for key, value := range c.Headers {
-		httpRequest.Header.Add(key, value)
+	// Default headers first
+	for key, value := range c.DefaultHeaders {
+		httpRequest.Header[key] = value
+	}
+
+	// Request-specific headers next
+	for key, value := range mr.Headers {
+		httpRequest.Header[key] = value
 	}
 
 	resp, err := ctxhttp.Do(ctx, c.httpClient, httpRequest)
